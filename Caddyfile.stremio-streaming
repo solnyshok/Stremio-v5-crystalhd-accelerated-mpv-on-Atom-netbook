@@ -1,0 +1,63 @@
+# /etc/caddy/Caddyfile on the streaming-server box (Celeron 1037U, Linux Mint)
+#
+# PURPOSE: terminate TLS for Stremio's streaming server AND inject the CORS headers a
+# self-hosted (or any non-app.strem.io) frontend needs. stunnel alone is not enough — it
+# is pure TCP/TLS forwarding with no notion of HTTP, so it cannot add or replace headers.
+#
+# WHY CORS IS NEEDED: the official client loads its frontend from app.strem.io, an origin
+# Stremio's server accommodates. Any other frontend origin (a self-hosted copy, or another
+# client's local server UI) is cross-origin and needs explicit Access-Control-Allow-Origin.
+#
+# WHY IT MUST BE HTTPS: the frontend is served over HTTPS, and Chromium auto-upgrades (and
+# then blocks) insecure subresource requests. An http:// streaming-server URL is rejected
+# as mixed content regardless of CORS.
+#
+# THE KEY DETAIL: server.js sets its OWN Access-Control-Allow-Origin. A plain
+# `header_down Access-Control-Allow-Origin` ADDS a second one, and browsers reject any
+# response with two ACAO headers. The leading `>` (replace: delete-then-set) is what makes
+# this work — without it, every client fails. This cost two broken attempts to find.
+#
+# Replace <HOST> with your own hostname. Ports:
+#   :11471  public TLS endpoint  ->  127.0.0.1:11470  (Stremio streaming server)
+#   The frontend is served separately (e.g. stunnel over :8173 exposed as :8174).
+
+{
+	# This box also runs unrelated services (torrserver, transmission, remote desktop).
+	# Disabling automatic HTTPS redirects stops Caddy binding :80/:443 and disrupting them.
+	auto_https disable_redirects
+}
+
+<HOST>:11471 {
+	# Reuse the existing stunnel certificate. It is a combined cert+key PEM, so the same
+	# path is passed twice. Caddy runs as its own user and needs read access to it.
+	tls /etc/stunnel/stunnel.pem /etc/stunnel/stunnel.pem
+
+	# Preflight: the browser sends OPTIONS before requests carrying Content-Type. Without
+	# Access-Control-Allow-Headers naming Content-Type, playback fails with "Request header
+	# field content-type is not allowed by Access-Control-Allow-Headers".
+	@preflight {
+		method OPTIONS
+	}
+	handle @preflight {
+		header >Access-Control-Allow-Origin "*"
+		header >Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+		header >Access-Control-Allow-Headers "Content-Type, Range, Authorization"
+		header >Access-Control-Max-Age "3600"
+		respond 204
+	}
+
+	# Actual requests. Range matters: mpv issues HTTP range requests when seeking and when
+	# probing the container (header at offset 0, then the index near EOF). The leading `>`
+	# on each header replaces server.js's own value instead of duplicating it.
+	reverse_proxy 127.0.0.1:11470 {
+		header_down >Access-Control-Allow-Origin "*"
+		header_down >Access-Control-Allow-Headers "Content-Type, Range, Authorization"
+	}
+}
+
+# "*" is safe here: the endpoint serves public torrent streams with no credentials or auth.
+# To restrict instead, replace "*" with a specific origin (e.g. https://<HOST>:8174). To
+# discover what a client actually sends, add a temporary `log` block and read the Origin.
+#
+# NOTE: all clients share one server.js. If it carries the single-stream patch (destroy
+# other engines on each new stream), a second device starting playback kills the first's.

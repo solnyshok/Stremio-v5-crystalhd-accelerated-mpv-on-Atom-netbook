@@ -1,0 +1,78 @@
+# Build environment for the patched Stremio v5 stack targeting Debian trixie.
+#
+# WHY DEBIAN TRIXIE: the target is an Atom N455 netbook running Debian 13. Building
+# in a trixie container guarantees the resulting stremio-shell binary links against
+# exactly the glibc / Qt5 / libmpv versions present on the target. Building on the
+# host (Ubuntu 24.04) would link against a newer glibc, and glibc symbol versioning
+# is forward-only — the binary would fail to start on trixie.
+#
+# CPU BASELINE: the N455 (Bonnell) has no SSE4/AVX; the build host (i5-8250u) does.
+# Never pass -march=native / -mtune=native / RUSTFLAGS="-C target-cpu=native" — the
+# default generic x86_64 baseline (SSE2) is what the target needs. The stremio-core
+# repo sets no target-cpu of its own, so defaults are safe as long as nothing is added.
+#
+# Build:
+#   docker build -t stremio-v5-build -f Dockerfile.stremio-v5-build .
+#   mkdir -p work
+#   docker run -it -v "$PWD/work:/work" -w /work stremio-v5-build bash
+#
+# The work dir is bind-mounted so sources and build artifacts survive on the host.
+# A snapshot of the working container was committed as: stremio-v5-build:working
+
+FROM debian:trixie
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# ---------------------------------------------------------------------------
+# stremio-shell (Qt5 + QtWebEngine + libmpv, built via qmake -> cmake)
+# ---------------------------------------------------------------------------
+# The upstream DEBIAN.md list is INCOMPLETE. It names the QML runtime modules but
+# omits the qmake *development* packages that provide the .pri files needed to
+# resolve `QT += webengine webchannel`, plus cmake itself. All of the following
+# are confirmed present in trixie:
+#
+#   qtwebengine5-dev        -> provides webengine.pri (NOT in upstream's list)
+#   libqt5webchannel5-dev   -> webchannel (note the "libqt5..." prefix; there is
+#                              no "qtwebchannel5-dev" package in Debian)
+#   libqt5opengl5-dev       -> CMake's find_package(Qt5OpenGL) (NOT in the list)
+#   cmake                   -> release.makefile shells out to cmake (NOT in the list)
+#   wget                    -> release.makefile fetches server.js with it
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git curl wget ca-certificates pkgconf build-essential \
+    qtcreator qt5-qmake qtdeclarative5-dev \
+    qtwebengine5-dev libqt5webchannel5-dev libqt5opengl5-dev \
+    qml-module-qtwebchannel qml-module-qt-labs-platform qml-module-qtwebengine \
+    qml-module-qtquick-dialogs qml-module-qtquick-controls \
+    qml-module-qt-labs-settings qml-module-qt-labs-folderlistmodel \
+    libssl-dev librsvg2-bin libmpv-dev \
+    cmake ninja-build \
+    nano \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---------------------------------------------------------------------------
+# Rust toolchain (for stremio-core-web -> WASM)
+# ---------------------------------------------------------------------------
+# rustup rather than trixie's system rustc, so the version can be matched to
+# whatever rust-toolchain.toml pins in the checked-out tag.
+#
+# NOTE: do NOT set RUSTFLAGS="-C target-feature=-reference-types". It looks like
+# the fix for the old-Chromium externref problem, but wasm-bindgen 0.2.100+ *requires*
+# reference-types for its own JS glue and the build fails with
+# "failed to find the __wbindgen_externref_table_dealloc function".
+# The actual fix is pinning wasm-bindgen to 0.2.92 in Cargo.toml (see summary doc).
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN cargo install wasm-pack
+
+# ---------------------------------------------------------------------------
+# Node 22 + pnpm (for stremio-web)
+# ---------------------------------------------------------------------------
+# stremio-web v5.0.0-beta.39 declares engines: node >=22, pnpm >=11.
+# Node 20 is NOT sufficient — pnpm 11 uses node:sqlite, which only exists in
+# Node 22+, and fails with ERR_UNKNOWN_BUILTIN_MODULE.
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /work
