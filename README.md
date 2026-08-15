@@ -510,37 +510,3 @@ Stremio's proprietary prebuilt streaming server, not open source, so a modified 
 be redistributed. The change is described in the "Server-side single-stream patch" section
 above; apply it by hand to your own downloaded `server.js`.
 
----
-
-## Publishing this to GitHub
-
-This umbrella repo holds the writeup, the Docker/Caddy configs, and the patch set — it does
-**not** vendor upstream source. Recommended layout:
-
-1. **Create the umbrella repo** (this directory):
-
-   ```bash
-   cd stremio-v5-atom-mpv
-   git init
-   git add .
-   git commit -m "Stremio v5 external crystalhd/xv mpv on Atom N455: writeup + patches"
-   git branch -M main
-   git remote add origin https://github.com/<you>/stremio-v5-atom-mpv.git
-   git push -u origin main
-   ```
-
-2. **(Optional) fork the three upstream repos** on GitHub and push the patched branches to
-   them, so people can build from a ready tree instead of applying patches:
-
-   ```bash
-   # after `git am` above, in each repo:
-   git remote add fork https://github.com/<you>/stremio-core.git
-   git push fork HEAD:atom-mpv         # a branch named atom-mpv
-   ```
-
-   Then link those branches from this README. Keep the upstream `LICENSE` files intact — all
-   three repos are open source (GPL/MPL) and the patches inherit their license.
-
-3. **Do not commit** your own `<HOST>`, LAN IPs, `stunnel.pem`, or account details. The
-   configs here use `<HOST>` placeholders; keep them that way in the public repo and put
-   real values only in a local, untracked copy.
