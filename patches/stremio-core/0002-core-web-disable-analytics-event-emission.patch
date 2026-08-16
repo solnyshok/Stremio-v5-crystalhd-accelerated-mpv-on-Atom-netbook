@@ -1,0 +1,30 @@
+From d405b65aede1f265ec07021f2355f250096c262f Mon Sep 17 00:00:00 2001
+From: atom-mpv <you@example.com>
+Date: Sat, 15 Aug 2026 06:37:09 +0000
+Subject: [PATCH] core-web: disable analytics event emission
+
+Drop the single ANALYTICS.emit call so no telemetry batch is ever queued;
+send_next_batch()/flush() become no-ops without touching the Env trait or the
+analytics feature (env.rs references the Analytics type unconditionally, so the
+feature cannot simply be removed).
+---
+ stremio-core-web/src/env.rs | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/stremio-core-web/src/env.rs b/stremio-core-web/src/env.rs
+index 5079a4e..569ba1a 100644
+--- a/stremio-core-web/src/env.rs
++++ b/stremio-core-web/src/env.rs
+@@ -237,7 +237,8 @@ impl WebEnv {
+                 _ => return,
+             },
+         };
+-        ANALYTICS.emit(name, data, &model.ctx, &model.streaming_server, path);
++        // analytics disabled
++        let _ = (name, data, model, path);
+     }
+     pub fn send_next_analytics_batch() -> impl Future<Output = ()> {
+         ANALYTICS.send_next_batch()
+-- 
+2.43.0
+

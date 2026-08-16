@@ -1,0 +1,30 @@
+From e17f53661095519ee61d39a42321fb1080a284db Mon Sep 17 00:00:00 2001
+From: atom-mpv <you@example.com>
+Date: Sat, 15 Aug 2026 06:37:33 +0000
+Subject: [PATCH 5/5] transport: disable frontend analytics
+
+Make analytics() a no-op so App.js / SharePrompt / StreamsList stop sending
+telemetry events. Account functions (login, library, addons) are unaffected.
+---
+ src/core/createTransport.ts | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/core/createTransport.ts b/src/core/createTransport.ts
+index 019ba15..ec64f1a 100644
+--- a/src/core/createTransport.ts
++++ b/src/core/createTransport.ts
+@@ -24,8 +24,9 @@ const createTransport = (): CoreTransport => {
+         return bridge.call(['decodeStream'], [stream]);
+     };
+ 
+-    const analytics = (event: object): Promise<void> => {
+-        return bridge.call(['analytics'], [event, location.hash]);
++    const analytics = (_event: object): Promise<void> => {
++        // analytics disabled
++        return Promise.resolve();
+     };
+ 
+     return {
+-- 
+2.43.0
+

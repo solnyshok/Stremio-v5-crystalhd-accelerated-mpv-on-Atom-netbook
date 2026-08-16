@@ -1,0 +1,46 @@
+From f77a9810ceb7954c68878713334e888365f75fc5 Mon Sep 17 00:00:00 2001
+From: atom-mpv <you@example.com>
+Date: Sat, 15 Aug 2026 06:37:33 +0000
+Subject: [PATCH 4/5] App: guard Chromecast setOptions against missing Cast SDK
+
+QtWebEngine is not Chrome, so the Google Cast sender SDK never loads and
+chrome.cast is undefined. Reading chrome.cast.AutoJoinPolicy threw an uncaught
+TypeError at mount, aborting the init chain. Wrap in try/catch.
+---
+ src/App/App.js | 20 ++++++++++++--------
+ 1 file changed, 12 insertions(+), 8 deletions(-)
+
+diff --git a/src/App/App.js b/src/App/App.js
+index 1ad2a09..7c6d29c 100644
+--- a/src/App/App.js
++++ b/src/App/App.js
+@@ -84,14 +84,18 @@ const App = () => {
+ 
+     React.useEffect(() => {
+         const onChromecastStateChange = () => {
+-            if (services.chromecast.active) {
+-                services.chromecast.transport.setOptions({
+-                    receiverApplicationId: CONSTANTS.CHROMECAST_RECEIVER_APP_ID,
+-                    autoJoinPolicy: chrome.cast.AutoJoinPolicy.PAGE_SCOPED,
+-                    resumeSavedSession: false,
+-                    language: null,
+-                    androidReceiverCompatible: true
+-                });
++            try {
++                if (services.chromecast.active) {
++                    services.chromecast.transport.setOptions({
++                        receiverApplicationId: CONSTANTS.CHROMECAST_RECEIVER_APP_ID,
++                        autoJoinPolicy: chrome.cast.AutoJoinPolicy.PAGE_SCOPED,
++                        resumeSavedSession: false,
++                        language: null,
++                        androidReceiverCompatible: true
++                    });
++                }
++            } catch (error) {
++                console.warn('Chromecast setOptions failed (no Cast SDK available):', error);
+             }
+         };
+         services.chromecast.on('stateChanged', onChromecastStateChange);
+-- 
+2.43.0
+

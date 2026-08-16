@@ -1,0 +1,65 @@
+From 0228da77507ee44dca6a6336278c0d141802bac6 Mon Sep 17 00:00:00 2001
+From: atom-mpv <you@example.com>
+Date: Sat, 15 Aug 2026 06:37:55 +0000
+Subject: [PATCH] main.qml: launch external player and quiet the v5 startup
+ error
+
+- Intercept mpv:/vlc: navigation and spawn a user handler script via the
+  existing Process (QProcess) type. Qt.openUrlExternally refuses these schemes
+  even though gio open / xdg-open dispatch them correctly. Process.start takes
+  three args (program, arguments, mPattern) - pass "" for the pattern.
+- Suppress the 'User Interface could not be loaded' dialog for the harmless
+  initShellComm error: stremio-web v5 dropped Qt webChannel support (it only
+  speaks WebView2), so that symbol never exists. Genuine load failures still
+  show the dialog.
+
+Edit the handler script path (/home/atom/mpv-url-handler.sh) for your setup.
+---
+ main.qml | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/main.qml b/main.qml
+index 6199cd1..053f627 100644
+--- a/main.qml
++++ b/main.qml
+@@ -230,6 +230,10 @@ ApplicationWindow {
+         id: clipboard
+     }
+ 
++    // Spawns the external player. Qt.openUrlExternally() refuses custom schemes here
++    // (even though gio open / xdg-open handle them), so we shell out via QProcess.
++    Process { id: externalPlayerProcess }
++
+     //
+     // Streaming server
+     //
+@@ -347,6 +351,10 @@ ApplicationWindow {
+         webView.runJavaScript(injectedJS, function(err) {
+             if (!err) {
+                 webView.tries = 0
++            } else if (String(err).indexOf("initShellComm") !== -1) {
++                // stremio-web v5 dropped Qt webChannel support (WebView2 only), so
++                // initShellComm never exists. Harmless - log instead of alarming.
++                console.log("injectJS: " + err)
+             } else {
+                 errorDialog.text = "User Interface could not be loaded.\n\nPlease try again later or contact the Stremio support team for assistance."
+                 errorDialog.detailedText = err
+@@ -450,6 +458,15 @@ ApplicationWindow {
+ 
+         // Prevent navigation
+         onNavigationRequested: function(req) {
++            // Hand external-player schemes to the system handler via QProcess.
++            // Edit the path below to your own mpv:// URL handler script.
++            var reqUrl = req.url.toString()
++            if (reqUrl.indexOf("mpv:") === 0 || reqUrl.indexOf("vlc:") === 0) {
++                console.log("onNavigationRequested: external player URL " + reqUrl);
++                externalPlayerProcess.start("/home/atom/mpv-url-handler.sh", [reqUrl], "");
++                req.action = WebEngineView.IgnoreRequest;
++                return;
++            }
+             // WARNING: @TODO: perhaps we need a better way to parse URLs here
+             var allowedHost = webView.mainUrl.split('/')[2]
+             var targetHost = req.url.toString().split('/')[2]
+-- 
+2.43.0
+

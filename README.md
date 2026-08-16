@@ -1,5 +1,4 @@
-# Stremio-v5 via crystalhd/mpv on Atom netbook on Linux/Debian 
-Stremio v5 with integration to play movies on crystalhd accelerated mpv on Debian 13, xfce, Atom cpu with 2GB RAM)
+# Custom Stremio v5 with external crystalhd/xv mpv on an Atom N455
 
 ## The problem
 
@@ -149,9 +148,7 @@ Downgrading would mean porting the app backward across four library generations.
 
 The only trixie-era lineage (tags ≤ `v1.0.0-beta.13`) is a completely different pre-rewrite
 codebase built on **CEF** — full Chromium, the heaviest option, and abandoned since the June
-2026 rewrite. And v6 renders through embedded libmpv into a `gtk::GLArea` regardless — the
-same in-webview GL path this project exists to avoid — so it would hit the identical
-software-GL wall on this hardware, whatever output the embedded player used.
+2026 rewrite. And v6 hardcodes `vo=libmpv` anyway, so it could never do `xv`.
 
 ---
 
@@ -452,7 +449,7 @@ A `~/.local/share/applications/stremio5.desktop` launches it from the XFCE menu 
   separate renderer process. `--renderer-process-limit=1` is the honored equivalent. But
   with ~1GB of 2GB free during use, memory isn't the constraint here — the playback
   ceiling is — so this tuning changes little.
-- **Deskflow** (keyboard/mouse sharing) running on the netbook **sometimes**, especially during debugging with developer tools, hijacks mpv's input; restart it or quit it
+- **Deskflow** (keyboard/mouse sharing) running on the netbook hijacks mpv's input; quit it
   for full-screen playback control.
 
 ---
@@ -510,3 +507,45 @@ Stremio's proprietary prebuilt streaming server, not open source, so a modified 
 be redistributed. The change is described in the "Server-side single-stream patch" section
 above; apply it by hand to your own downloaded `server.js`.
 
+---
+
+## Publishing this to GitHub
+
+This umbrella repo holds the writeup, the Docker/Caddy configs, and the patch set — it does
+**not** vendor upstream source. Recommended layout:
+
+1. **Create the umbrella repo** (this directory):
+
+   ```bash
+   cd stremio-v5-atom-mpv
+   git init
+   git add .
+   git commit -m "Stremio v5 external crystalhd/xv mpv on Atom N455: writeup + patches"
+   git branch -M main
+   git remote add origin https://github.com/<you>/stremio-v5-atom-mpv.git
+   git push -u origin main
+   ```
+
+2. **(Optional) fork the three upstream repos** on GitHub and push the patched branches to
+   them, so people can build from a ready tree instead of applying patches:
+
+   ```bash
+   # after `git am` above, in each repo:
+   git remote add fork https://github.com/<you>/stremio-core.git
+   git push fork HEAD:atom-mpv         # a branch named atom-mpv
+   ```
+
+   Then link those branches from this README. Keep the upstream `LICENSE` files intact — all
+   three repos are open source (GPL/MPL) and the patches inherit their license.
+
+3. **Do not commit** your own `<HOST>`, LAN IPs, `stunnel.pem`, or account details. The
+   configs here use `<HOST>` placeholders; keep them that way in the public repo and put
+   real values only in a local, untracked copy.
+
+### Suggested repo description / topics
+
+> Make Stremio (v5) always hand playback to a standalone hardware-accelerated mpv
+> (Broadcom CrystalHD + Xv) on a 2GB Atom N455 netbook running Debian trixie.
+
+Topics: `stremio`, `mpv`, `crystalhd`, `atom-n455`, `debian`, `xv`, `low-end-hardware`,
+`qtwebengine`, `external-player`.

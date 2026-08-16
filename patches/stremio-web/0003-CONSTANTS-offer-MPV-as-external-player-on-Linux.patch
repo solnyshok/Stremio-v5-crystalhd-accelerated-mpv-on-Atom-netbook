@@ -1,0 +1,27 @@
+From 91668d43f8e5bf4b2e62f36e0259420d3fc76214 Mon Sep 17 00:00:00 2001
+From: atom-mpv <you@example.com>
+Date: Sat, 15 Aug 2026 06:37:33 +0000
+Subject: [PATCH 3/5] CONSTANTS: offer MPV as external player on Linux
+
+Add 'linux' to the MPV player-type platform list so the option appears in
+Settings on Linux desktop builds.
+---
+ src/common/CONSTANTS.js | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/common/CONSTANTS.js b/src/common/CONSTANTS.js
+index 85b2ada..5190a43 100644
+--- a/src/common/CONSTANTS.js
++++ b/src/common/CONSTANTS.js
+@@ -73,7 +73,7 @@ const EXTERNAL_PLAYERS = [
+     {
+         label: 'MPV',
+         value: 'mpv',
+-        platforms: ['macos'],
++        platforms: ['macos', 'linux'],
+     },
+     {
+         label: 'IINA',
+-- 
+2.43.0
+

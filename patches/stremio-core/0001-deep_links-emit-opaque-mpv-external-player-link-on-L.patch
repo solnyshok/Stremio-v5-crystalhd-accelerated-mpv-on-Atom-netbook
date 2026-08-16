@@ -1,0 +1,31 @@
+From 63819cf57659dce7f895c00ee1e9732b0313f22a Mon Sep 17 00:00:00 2001
+From: atom-mpv <you@example.com>
+Date: Sat, 15 Aug 2026 06:37:01 +0000
+Subject: [PATCH] deep_links: emit opaque mpv: external-player link on Linux
+
+Linux desktop builds never populated the external-player deeplink for mpv.
+Emit an opaque 'mpv:<percent-encoded-url>' URI. The '//' host form is rejected
+by GIO as an invalid hostname and the '///path' form is treated as a mountable
+GVfs location; only the opaque form is dispatched to a registered scheme handler.
+---
+ src/deep_links/mod.rs | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/src/deep_links/mod.rs b/src/deep_links/mod.rs
+index f17d020..4ab0bf3 100644
+--- a/src/deep_links/mod.rs
++++ b/src/deep_links/mod.rs
+@@ -181,6 +181,10 @@ impl From<(&Stream<ConvertedStreamSource>, Option<&Url>, &Settings)> for Externa
+                     }),
+                     "mpv" => Some(OpenPlayerLink {
+                         macos: Some(format!("mpv://{url}")),
++                        // Linux: opaque mpv: URI (no slashes). "mpv://host" is rejected by
++                        // GIO as a bad hostname; "mpv:///path" is treated as a mountable
++                        // location; only the opaque form dispatches to a scheme handler.
++                        linux: Some(format!("mpv:{}", utf8_percent_encode(url.as_str(), URI_COMPONENT_ENCODE_SET))),
+                        ..Default::default()
+                     }),
+                     "moonplayer" => Some(OpenPlayerLink {
+-- 
+2.43.0
+
